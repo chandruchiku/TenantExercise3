@@ -36,24 +36,26 @@ namespace TenantExercise3
         public void ConfigureServices(IServiceCollection services)
         {
 
-            services.AddMvc();
+            services.AddHttpContextAccessor();
+            services
+                .AddAutofacMultitenantRequestServices()
+                .AddControllers();
+
             services.AddSwaggerGen(c =>
             {
                 c.SwaggerDoc("v1", new OpenApiInfo { Title = "TenantExercise3", Version = "v1" });
                 c.OperationFilter<TenantHeaderOperationFilter>();
             });
 
-            //services.TryAddSingleton<IHttpContextAccessor, HttpContextAccessor>();
-            services.AddHttpContextAccessor();
-            services.AddAutofacMultitenantRequestServices();
+            //services.TryAddSingleton<IHttpContextAccessor, HttpContextAccessor>();                        
         }
 
         public void ConfigureContainer(ContainerBuilder builder)
         {
             builder.RegisterType<TenantResolver>().As<ITenantResolver>().SingleInstance();
             builder.RegisterType<TenantResolverStrategy>().As<ITenantIdentificationStrategy>().SingleInstance();
-            //builder.RegisterType<DataService>().As<IDataService>();
-            //builder.RegisterInstance(new OperationIdService()).SingleInstance();
+            builder.RegisterType<DataService>().As<IDataService>();
+            builder.RegisterInstance(new OperationIdService()).SingleInstance();
             builder.Register(container =>
             {
                 ITenantIdentificationStrategy strategy = container.Resolve<ITenantIdentificationStrategy>();
@@ -72,13 +74,21 @@ namespace TenantExercise3
 
         public static MultitenantContainer ConfigureMultitenantContainer(IContainer container)
         {
-            var strategy = container.Resolve<ITenantIdentificationStrategy>();
+            var strategy = new TenantResolverStrategy(container.Resolve<IHttpContextAccessor>()) ;
             var multitenantContainer = new MultitenantContainer(strategy, container);
+            
             multitenantContainer.ConfigureTenant("80fdb3c0-5888-4295-bf40-ebee0e3cd8f3", containerBuilder =>
             {
-                containerBuilder.RegisterType<DataService>().As<IDataService>();
+                containerBuilder.RegisterType<DataService>().As<IDataService>().InstancePerDependency();
                 containerBuilder.RegisterInstance(new OperationIdService()).SingleInstance();
             });
+
+             multitenantContainer.ConfigureTenant("b0ed668d-7ef2-4a23-a333-94ad278f45d7", containerBuilder =>
+            {
+                containerBuilder.RegisterType<DataService>().As<IDataService>().InstancePerDependency();
+                containerBuilder.RegisterInstance(new OperationIdService()).SingleInstance();
+            });
+
             return multitenantContainer;
         }
 
